@@ -13,6 +13,27 @@ var serialize = class2type.toString,
 
 var hasOwn = Object.prototype.hasOwnProperty;
 
+function cloneOf(item) {
+	var name = util.type(item);
+	switch(name) {
+		case "Array":
+		case "Object":
+			return util[name].clone(item);
+		default:
+			return item;
+	}
+}
+
+function mergeOne(source, key, current) {
+    //使用深拷贝方法将多个对象或数组合并成一个
+    if (util.isPlainObject(source[key])) { //只处理纯JS对象，不处理window与节点
+        util.Object.merge(source[key], current);
+    } else {
+        source[key] = cloneOf(current)
+    }
+    return source;
+}
+
 var util = {
 	/*杂糅对象， 为一个对象添加更多成员
 	*@param {Object} receiver 接收者
@@ -151,7 +172,7 @@ var util = {
     *return {Object}
     */
     filter: function(obj, fn) {
-    	for(var i = 0, n < obj.length, ret = []; i < n; i++) {
+    	for(var i = 0, n = obj.length, ret = []; i < n; i++) {
     		var val = fn.call(obj[i], obj[i], i);
     		if(!!val){
     			ret[ret.length - 1] = obj[i];
@@ -162,7 +183,130 @@ var util = {
 }
 
 "String,Array,Number,Object".replace(/[^, ]+/g, function(Type){
+	util[Type] = function(pack){
+		if(util.isPlainObject(pack)){
+			var methods = Object.keys(pack);
+			methods.forEach(function(method){
+				util[Type][method] = pack[method];
+			})
+		}
+	}
 })
 
+//string中的方法暂时还没有
+util.String();
+
+util.Array({
+	contains: function(target, item) {
+		return !!~target.indexOf(item);
+	},
+	removeAt: function(target, index) {
+		return !!target.splice(index, 1).length
+	},
+	remove: function(target, item) {
+		var index = target.indexOf(item);
+
+		if(~index){
+			return util.Array.removeAt(target, index);
+		}
+		return false;
+	},
+
+	unique: function(target) {
+		// 对数组进行去重操作，返回一个没有重复元素的数组
+		var ret = [],
+			n = target.length;
+
+		for(var i=0; i<n; i++){
+			for(var j=i+1; j<n; j++){
+				if(target[i] === target[j]){
+					j = ++i
+				}
+				ret.push(target[i]);
+			}
+		}
+		return ret;
+	},
+	merge: function(first, second) {
+		var i = ~~first.length,
+			j = 0;
+		for(var n=second.length; j<n; j++){
+			first[i++] = second[j];
+		}
+		first.length = i;
+		return first;
+	},
+	union: function(first, array) {
+		//对两个数组取并集
+		return util.Array.unique(util.merge(first, array));
+	},
+	intersect: function(target, array) {
+		//取出两个数组的交集
+		return util.filter(target, function(item){
+			return ~array.indexOf(item);
+		});
+	},
+	min: function(target) {
+		return Math.min.call(0, target);
+	},
+	max: function(target) {
+		return Math.max.call(0, target);
+	},
+	ensure: function(target, el) {
+		//添加元素，只有目标数组中没有指定元素时候才能添加进去
+		if(!~target.indexOf(el)){
+			target.push(el);
+		}
+		return target;
+	},
+	clone: function(target) {
+		var i = target.length,
+			result = [];
+
+		while(i--){
+			result[i] = cloneOf(target[i]);
+		}
+		return result;
+	}
+})
+
+util.Object({
+	forEach: function(target, fn) {
+		Object.keys(obj).forEach(function(name){
+			fn(obj[name], name);
+		})
+	},
+	//将参数一的键值都放入回调中执行，收集其结果返回
+    map: function(obj, fn) {
+        return  Object.keys(obj).map(function(name) {
+            return fn(obj[name], name)
+        })
+    },
+    clone: function(target) {
+            //进行深拷贝，返回一个新对象，如果是浅拷贝请使用$.mix
+        var clone = {};
+        for (var key in target) {
+            clone[key] = cloneOf(target[key]);
+        }
+        return clone;
+    },
+    merge: function(target, k, v) {
+        //将多个对象合并到第一个参数中或将后两个参数当作键与值加入到第一个参数
+        var obj, key;
+        //为目标对象添加一个键值对
+        if (typeof k === "string")
+            return mergeOne(target, k, v);
+        //合并多个对象
+        for (var i=1, n = arguments.length; i<n; i++) {
+            obj = arguments[i];
+            for (key in obj) {
+                if (obj[key]!==void 0) {
+                    mergeOne(target, key, obj[key]);
+                }
+            }
+        }
+        return target;
+    }
+})
 
 // window.util = util;
